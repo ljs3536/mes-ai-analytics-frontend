@@ -1,5 +1,7 @@
 "use client";
 
+// 모델. 설비 특징값으로 Isolation Forest를 학습하고, 운영 버전을 지정하며 최근 판정을 본다.
+
 import { useEffect, useState } from "react";
 import { loadModels, promoteModel, trainModel } from "@/lib/actions";
 import type { Live, ModelList } from "@/lib/api";

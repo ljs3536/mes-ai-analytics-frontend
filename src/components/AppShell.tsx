@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// 분석 화면 메뉴. 기능을 추가하거나 빼면 여기 항목과 해당 페이지 주석을 같이 고친다.
 const NAV = [
   { href: "/", label: "파형 분석" },
   { href: "/simulator", label: "센서 연결" },

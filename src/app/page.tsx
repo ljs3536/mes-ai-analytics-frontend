@@ -1,5 +1,7 @@
 "use client";
 
+// 파형 분석. 설비를 고르면 연결된 센서마다 시간 파형과 스펙트럼을 따로 보여 준다.
+
 import { useEffect, useState } from "react";
 import { LineChart } from "@/components/LineChart";
 import { loadSensors, loadWaveform } from "@/lib/actions";

@@ -1,3 +1,4 @@
+// 센서 분석 화면. 설비에 연결된 센서 파형, 센서 연결 설정, 이상 탐지 모델을 다룬다.
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { AppShell } from "@/components/AppShell";

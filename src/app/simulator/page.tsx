@@ -1,5 +1,7 @@
 "use client";
 
+// 센서 연결. 설비에 센서를 추가하고, 목록에서 고른 센서의 샘플레이트·샘플 수·주기·파형을 저장한다.
+
 import { useEffect, useState } from "react";
 import { LineChart } from "@/components/LineChart";
 import {
