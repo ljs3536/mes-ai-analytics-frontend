@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   { href: "/", label: "파형 분석" },
-  { href: "/simulator", label: "센서 에뮬레이터" },
+  { href: "/simulator", label: "센서 연결" },
   { href: "/models", label: "모델" },
 ];
 

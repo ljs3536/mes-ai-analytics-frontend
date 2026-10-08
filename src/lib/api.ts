@@ -1,6 +1,7 @@
 const COLLECTOR_URL = process.env.COLLECTOR_URL ?? "http://localhost:8001";
 const EMULATOR_URL = process.env.EMULATOR_URL ?? "http://localhost:8002";
 const ANALYTICS_URL = process.env.ANALYTICS_URL ?? "http://localhost:8003";
+const MES_URL = process.env.MES_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   constructor(
@@ -65,9 +66,61 @@ export type Live = {
   >;
 };
 
+export type MachineSensor = {
+  id: number;
+  machineCode: string;
+  code: string;
+  name: string;
+  sensorType: string;
+  mount: string;
+  unit: string;
+  sampleRate: number;
+  nSamples: number;
+  intervalS: number;
+  preset: string;
+  severity: number;
+  enabled: boolean;
+};
+
 export const collector = {
-  waveform: (machine: string) =>
-    call<Waveform>(COLLECTOR_URL, `/api/waveform?machine=${encodeURIComponent(machine)}`),
+  waveform: (machine: string, channel: string) =>
+    call<Waveform>(
+      COLLECTOR_URL,
+      `/api/waveform?machine=${encodeURIComponent(machine)}&channel=${encodeURIComponent(channel)}`,
+    ),
+};
+
+export const mes = {
+  sensors: (machine?: string) =>
+    call<MachineSensor[]>(
+      MES_URL,
+      `/api/sensors${machine ? `?machine=${encodeURIComponent(machine)}` : ""}`,
+    ),
+  machines: () =>
+    call<{ code: string; name: string }[]>(MES_URL, "/api/machines"),
+  createSensor: (machine: string, sensor: Omit<MachineSensor, "id" | "machineCode">) =>
+    call<MachineSensor>(MES_URL, `/api/sensors?machine=${encodeURIComponent(machine)}`, {
+      method: "POST",
+      body: JSON.stringify(sensor),
+    }),
+  deleteSensor: (id: number) => call<null>(MES_URL, `/api/sensors/${id}`, { method: "DELETE" }),
+  saveSensor: (sensor: MachineSensor) =>
+    call<MachineSensor>(MES_URL, `/api/sensors/${sensor.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        code: sensor.code,
+        name: sensor.name,
+        sensorType: sensor.sensorType,
+        mount: sensor.mount,
+        unit: sensor.unit,
+        sampleRate: sensor.sampleRate,
+        nSamples: sensor.nSamples,
+        intervalS: sensor.intervalS,
+        preset: sensor.preset,
+        severity: sensor.severity,
+        enabled: sensor.enabled,
+      }),
+    }),
 };
 
 export const emulator = {
