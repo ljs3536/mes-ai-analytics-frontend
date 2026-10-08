@@ -53,16 +53,42 @@ export type Channel = {
 
 export type Presets = { presets: { id: string; label: string }[]; sampleCounts: number[] };
 
-export type ModelList = {
-  name: string;
-  production: string | null;
-  versions: { version: string; runId: string; status: string; createdAt: number }[];
+export type ModelParam = {
+  key: string;
+  label: string;
+  type: "int" | "float";
+  min: number;
+  max: number;
+  step: number;
+  default: number;
 };
+
+export type ModelKind = {
+  id: string;
+  label: string;
+  summary: string;
+  params: ModelParam[];
+};
+
+export type ManagedModel = {
+  id: number;
+  name: string;
+  kind: string;
+  kindLabel: string;
+  params: Record<string, number>;
+  realtime: boolean;
+  machine: string;
+  version: string | null;
+  status: string;
+  message: string;
+};
+
+export type ModelCatalog = { kinds: ModelKind[]; models: ManagedModel[] };
 
 export type Live = {
   predictions: Record<
     string,
-    { ts: string; version: string; score: number; isAnomaly: boolean; channel?: string }
+    Record<string, { model: string; version: string; score: number; isAnomaly: boolean; channel?: string }>
   >;
 };
 
@@ -141,16 +167,19 @@ export const emulator = {
 };
 
 export const analytics = {
-  models: () => call<ModelList>(ANALYTICS_URL, "/api/models"),
+  models: () => call<ModelCatalog>(ANALYTICS_URL, "/api/models"),
   live: () => call<Live>(ANALYTICS_URL, "/api/live"),
-  train: (body: { machine: string; minutes: number; contamination: number }) =>
-    call<{ version: string; rows: number }>(ANALYTICS_URL, "/api/train", {
+  createModel: (body: { name: string; kind: string; params: Record<string, number>; realtime: boolean }) =>
+    call<ManagedModel>(ANALYTICS_URL, "/api/models", { method: "POST", body: JSON.stringify(body) }),
+  updateModel: (model: ManagedModel) =>
+    call<ManagedModel>(ANALYTICS_URL, `/api/models/${model.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name: model.name, params: model.params, realtime: model.realtime }),
+    }),
+  deleteModel: (id: number) => call<null>(ANALYTICS_URL, `/api/models/${id}`, { method: "DELETE" }),
+  trainModel: (id: number, body: { machine: string; minutes: number }) =>
+    call<{ version: string; realtime: boolean; status?: string }>(ANALYTICS_URL, `/api/models/${id}/train`, {
       method: "POST",
       body: JSON.stringify(body),
-    }),
-  promote: (version: string) =>
-    call<{ production: string }>(ANALYTICS_URL, "/api/models/production", {
-      method: "POST",
-      body: JSON.stringify({ version }),
     }),
 };

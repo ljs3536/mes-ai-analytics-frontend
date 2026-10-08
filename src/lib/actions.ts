@@ -45,15 +45,33 @@ export async function previewChannel(body: {
   return emulator.preview(body);
 }
 
+// 등록된 모델 목록과 최신 판정을 함께 가져온다.
 export async function loadModels() {
   const [models, live] = await Promise.all([analytics.models(), analytics.live()]);
   return { models, live };
 }
 
-export async function trainModel(body: { machine: string; minutes: number; contamination: number }) {
-  return analytics.train(body);
+// 종류, 파라미터, 실시간 적용 여부로 모델을 등록한다.
+export async function createModel(body: {
+  name: string;
+  kind: string;
+  params: Record<string, number>;
+  realtime: boolean;
+}) {
+  return analytics.createModel(body);
 }
 
-export async function promoteModel(version: string) {
-  return analytics.promote(version);
+// 이름, 파라미터, 실시간 적용 여부를 저장한다.
+export async function updateModel(model: import("./api").ManagedModel) {
+  return analytics.updateModel(model);
+}
+
+// 모델 목록에서 한 건을 지운다.
+export async function deleteModel(id: number) {
+  return analytics.deleteModel(id);
+}
+
+// 고른 설비의 수집 데이터로 해당 모델 학습을 요청한다.
+export async function trainManagedModel(id: number, body: { machine: string; minutes: number }) {
+  return analytics.trainModel(id, body);
 }
