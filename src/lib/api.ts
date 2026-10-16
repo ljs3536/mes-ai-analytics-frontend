@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 const COLLECTOR_URL = process.env.COLLECTOR_URL ?? "http://localhost:8001";
 const EMULATOR_URL = process.env.EMULATOR_URL ?? "http://localhost:8002";
 const ANALYTICS_URL = process.env.ANALYTICS_URL ?? "http://localhost:8003";
@@ -13,10 +15,15 @@ export class ApiError extends Error {
 }
 
 async function call<T>(base: string, path: string, init?: RequestInit): Promise<T> {
+  const token = base === MES_URL ? (await cookies()).get("mes_session")?.value : undefined;
   const res = await fetch(`${base}${path}`, {
     ...init,
     cache: "no-store",
-    headers: { "content-type": "application/json", ...init?.headers },
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
   const body = await res.json().catch(() => null);
   if (!res.ok) {
