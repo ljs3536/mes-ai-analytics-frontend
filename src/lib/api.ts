@@ -15,7 +15,8 @@ export class ApiError extends Error {
 }
 
 async function call<T>(base: string, path: string, init?: RequestInit): Promise<T> {
-  const token = base === MES_URL ? (await cookies()).get("mes_session")?.value : undefined;
+  const needsAdmin = base === MES_URL || base === ANALYTICS_URL || base === EMULATOR_URL;
+  const token = needsAdmin ? (await cookies()).get("mes_session")?.value : undefined;
   const res = await fetch(`${base}${path}`, {
     ...init,
     cache: "no-store",
