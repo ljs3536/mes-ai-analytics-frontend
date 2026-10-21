@@ -1,13 +1,18 @@
 "use server";
 
-import { analytics, collector, emulator, mes, type MachineSensor } from "./api";
+import { ApiError, analytics, collector, emulator, mes, type MachineSensor } from "./api";
 
 export async function loadSensors(machine: string) {
   return mes.sensors(machine);
 }
 
 export async function loadWaveform(machine: string, channel: string) {
-  return collector.waveform(machine, channel);
+  try {
+    return await collector.waveform(machine, channel);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 export async function loadSimulator() {
