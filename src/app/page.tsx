@@ -1,6 +1,6 @@
 "use client";
 
-// 파형 분석. 설비의 센서마다 시간 파형과 스펙트럼을 보여 준다. 단위, 이동 RMS, FFT 윈도우, 축 고정을 고른다.
+// 파형 분석. 설비의 센서마다 시간 파형, 진폭 스펙트럼, Welch PSD를 보여 준다. 단위, 이동 RMS, FFT 윈도우, 축 고정을 고른다.
 
 import { useEffect, useMemo, useState } from "react";
 import { LineChart } from "@/components/LineChart";
@@ -9,8 +9,10 @@ import type { MachineSensor, Waveform } from "@/lib/api";
 import {
   convertUnit,
   extent,
+  levelStats,
   slidingRms,
   spectrum,
+  welchPsd,
   withTime,
   type FftWindow,
   type Quantity,
@@ -27,7 +29,12 @@ function viewOf(wave: Waveform, quantity: Quantity, mvPerG: number, rmsMs: numbe
     quantity === "rms-g" || quantity === "rms-v"
       ? slidingRms(converted.ys, wave.sampleRate, rmsMs, converted.unit)
       : withTime(converted.ys, wave.sampleRate, converted.unit);
-  return { time, spec: spectrum(converted.ys, wave.sampleRate, fftWindow, converted.unit) };
+  const signal = converted.ys;
+  return {
+    time,
+    spec: spectrum(signal, wave.sampleRate, fftWindow, converted.unit),
+    psd: welchPsd(signal, wave.sampleRate, fftWindow, converted.unit),
+  };
 }
 
 function union(rows: Series[], xMax?: number) {
@@ -182,7 +189,7 @@ export default function WaveformPage() {
   }, [machine]);
 
   const views = useMemo(() => {
-    const out: Record<string, { time: Series; spec: Series }> = {};
+    const out: Record<string, { time: Series; spec: Series; psd: Series }> = {};
     for (const sensor of sensors) {
       const wave = waves[sensor.code];
       if (wave) out[sensor.code] = viewOf(wave, quantity, mvPerG, rmsMs, fftWindow);
@@ -230,7 +237,7 @@ export default function WaveformPage() {
       <section className="border-b border-white/8 px-8 py-5">
         <h3 className="text-sm font-medium text-zinc-200">표시 설정</h3>
         <p className="mt-1 text-xs text-zinc-500">
-          화면 단위를 전압 V 또는 가속도 g로 고릅니다. g = V ÷ (감도 mV/g ÷ 1000) 입니다. 저장값과 모델 입력은 바뀌지 않습니다.
+          화면 단위를 전압 V 또는 가속도 g로 고릅니다. g = V ÷ (감도 mV/g ÷ 1000) 입니다. 세로축은 파형에 맞춰 다시 그려지므로 모양은 비슷하고, 피크와 블록 RMS 숫자가 달라집니다. 이동 RMS는 창 안의 샘플로 실효값 √(평균 제곱)을 이어 붙인 곡선이고, 단위는 화면 단위와 같습니다.
         </p>
       <div className="mt-4 grid gap-6 lg:grid-cols-3">
         <label className="block text-sm text-zinc-400">
@@ -319,6 +326,12 @@ export default function WaveformPage() {
           const view = views[sensor.code];
           const time = view?.time;
           const spec = view?.spec;
+          const psd = view?.psd;
+          const level = levelStats(time?.ys ?? []);
+          const levelText = (value: number) =>
+            Math.abs(value) !== 0 && (Math.abs(value) >= 1000 || Math.abs(value) < 0.001)
+              ? value.toExponential(3)
+              : value.toPrecision(4);
           return (
             <section key={sensor.id} className="space-y-4">
               <div>
@@ -343,6 +356,7 @@ export default function WaveformPage() {
                   <p className="mb-3 text-sm text-zinc-300">
                     시간 파형 · 화면 {time?.unit ?? sensor.unit}
                     {wave ? ` · 수신 ${wave.unit || sensor.unit}` : ""}
+                    {level ? ` · 피크 ${levelText(level.peak)} · 블록 RMS ${levelText(level.rms)}` : ""}
                   </p>
                   <LineChart
                     values={time?.ys ?? []}
@@ -369,6 +383,23 @@ export default function WaveformPage() {
                     xMax={specXLock ? specXMax : 1200}
                     yMin={specYLock ? specYMin : undefined}
                     yMax={specYLock ? specYMax : undefined}
+                  />
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-[#12181f] p-5 xl:col-span-2">
+                  <p className="mb-3 text-sm text-zinc-300">
+                    PSD · Welch · {fftWindow} · {psd?.unit ?? ""}
+                  </p>
+                  <p className="mb-3 text-xs text-zinc-500">
+                    겹친 구간을 평균한 전력 스펙트럼 밀도입니다. 세로축은 10 log10(단위²/Hz)이고, 가로축은 스펙트럼과 같은 범위를 씁니다.
+                  </p>
+                  <LineChart
+                    values={psd?.ys ?? []}
+                    xs={psd?.xs}
+                    color="#c4b5fd"
+                    xLabel="Hz"
+                    yLabel={psd?.unit}
+                    xMin={specXLock ? specXMin : 0}
+                    xMax={specXLock ? specXMax : 1200}
                   />
                 </div>
               </div>

@@ -80,6 +80,17 @@ export function convertUnit(samples: number[], unit: string, target: "raw" | "g"
   return { xs, ys: samples.map((v) => v * voltsPerG), unit: "V" };
 }
 
+export function levelStats(ys: number[]) {
+  if (ys.length === 0) return null;
+  let peak = 0;
+  let sum = 0;
+  for (const value of ys) {
+    peak = Math.max(peak, Math.abs(value));
+    sum += value * value;
+  }
+  return { peak, rms: Math.sqrt(sum / ys.length) };
+}
+
 export function withTime(samples: number[], sampleRate: number, unit: string): Series {
   return {
     xs: samples.map((_, i) => i / sampleRate),
@@ -133,6 +144,51 @@ export function spectrum(samples: number[], sampleRate: number, windowName: FftW
     ys.push(Math.hypot(re[k], im[k]) * scale);
   }
   return { xs, ys, unit };
+}
+
+function segmentLength(n: number) {
+  let seg = 16;
+  const cap = Math.min(1024, Math.floor(n / 2));
+  while (seg * 2 <= cap) seg *= 2;
+  if (seg > n) return 0;
+  return seg;
+}
+
+export function welchPsd(samples: number[], sampleRate: number, windowName: FftWindow, unit: string): Series {
+  const n = samples.length;
+  const seg = segmentLength(n);
+  if (seg < 16 || sampleRate <= 0) return { xs: [], ys: [], unit };
+  const shape = WINDOWS[windowName];
+  const hop = seg / 2;
+  const bins = seg / 2;
+  let w2 = 0;
+  for (let i = 0; i < seg; i++) {
+    const w = shape(i, seg);
+    w2 += w * w;
+  }
+  const scale = w2 > 0 ? 2 / (sampleRate * w2) : 0;
+  const acc = new Float64Array(bins);
+  let count = 0;
+  for (let start = 0; start + seg <= n; start += hop) {
+    const re = new Float64Array(seg);
+    const im = new Float64Array(seg);
+    let mean = 0;
+    for (let i = 0; i < seg; i++) mean += samples[start + i];
+    mean /= seg;
+    for (let i = 0; i < seg; i++) re[i] = (samples[start + i] - mean) * shape(i, seg);
+    fft(re, im);
+    for (let k = 1; k < bins; k++) acc[k] += (re[k] * re[k] + im[k] * im[k]) * scale;
+    count += 1;
+  }
+  if (count === 0) return { xs: [], ys: [], unit };
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let k = 1; k < bins; k++) {
+    const density = acc[k] / count;
+    xs.push((k * sampleRate) / seg);
+    ys.push(10 * Math.log10(Math.max(density, 1e-20)));
+  }
+  return { xs, ys, unit: `dB ${unit}²/Hz` };
 }
 
 export function extent(xs: number[], ys: number[]) {
