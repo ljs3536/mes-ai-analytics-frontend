@@ -11,10 +11,36 @@ function niceStep(span: number) {
   return nice * pow;
 }
 
-function tickLabel(value: number) {
-  const abs = Math.abs(value);
-  if (abs !== 0 && (abs >= 10000 || abs < 0.01)) return value.toExponential(1);
-  return String(Math.round(value * 1000) / 1000);
+function superscript(exp: number) {
+  const digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+  const body = String(Math.abs(exp)).replace(/\d/g, (digit) => digits[Number(digit)]);
+  return exp < 0 ? `⁻${body}` : body;
+}
+
+function axisScale(min: number, max: number) {
+  const span = Math.max(max - min, 1e-12);
+  const exp = Math.floor(Math.log10(span));
+  if (exp >= -1 && exp <= 4) return { div: 1, note: "" };
+  return { div: 10 ** exp, note: `×10${superscript(exp)}` };
+}
+
+function tickText(value: number, step: number) {
+  const decimals = Math.min(4, Math.max(0, -Math.floor(Math.log10(step)) ));
+  const text = value.toFixed(decimals);
+  return text.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+}
+
+function ticks(min: number, max: number, div: number) {
+  const step = niceStep((max - min) / div);
+  const start = Math.ceil(min / div / step - 1e-9) * step;
+  const out: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    const value = start + i * step;
+    if (value > max / div + step * 0.01) break;
+    if (value < min / div - step * 0.01) continue;
+    out.push(value);
+  }
+  return { values: out, step };
 }
 
 export function LineChart({
@@ -39,120 +65,153 @@ export function LineChart({
   yLabel?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const xKey = xs?.join(",") ?? "";
+  const xKey = xs?.length ? `${xs[0]}:${xs[xs.length - 1]}:${xs.length}` : "";
 
   useEffect(() => {
     const canvas = ref.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
-    const width = canvas.width;
-    const height = canvas.height;
-    const left = 58;
-    const right = 12;
-    const top = 12;
-    const bottom = 32;
-    const plotW = width - left - right;
-    const plotH = height - top - bottom;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#0c1117";
-    ctx.fillRect(0, 0, width, height);
+    if (!canvas) return;
 
-    const points: { x: number; y: number }[] = [];
-    for (let i = 0; i < values.length; i++) {
-      const x = xs?.[i] ?? i;
-      const y = values[i];
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      if (xMin !== undefined && x < xMin) continue;
-      if (xMax !== undefined && x > xMax) continue;
-      points.push({ x, y });
-    }
+    const draw = () => {
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const cssW = Math.max(canvas.clientWidth, 320);
+      const cssH = Math.max(canvas.clientHeight, 220);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+      ctx.fillStyle = "#0c1117";
+      ctx.fillRect(0, 0, cssW, cssH);
 
-    let viewX0 = xMin ?? points[0]?.x ?? 0;
-    let viewX1 = xMax ?? points[points.length - 1]?.x ?? 1;
-    let viewY0 = yMin ?? Infinity;
-    let viewY1 = yMax ?? -Infinity;
-    if (yMin === undefined || yMax === undefined) {
-      for (const point of points) {
-        viewY0 = Math.min(viewY0, point.y);
-        viewY1 = Math.max(viewY1, point.y);
+      const points: { x: number; y: number }[] = [];
+      for (let i = 0; i < values.length; i++) {
+        const x = xs?.[i] ?? i;
+        const y = values[i];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        if (xMin !== undefined && x < xMin) continue;
+        if (xMax !== undefined && x > xMax) continue;
+        points.push({ x, y });
       }
-    }
-    if (!Number.isFinite(viewY0) || !Number.isFinite(viewY1)) {
-      viewY0 = -1;
-      viewY1 = 1;
-    }
-    if (viewX1 - viewX0 < 1e-12) {
-      viewX0 -= 1;
-      viewX1 += 1;
-    }
-    if (viewY1 - viewY0 < 1e-12) {
-      viewY0 -= 1;
-      viewY1 += 1;
-    }
 
-    const xStep = niceStep(viewX1 - viewX0);
-    const yStep = niceStep(viewY1 - viewY0);
-    const xStart = Math.ceil(viewX0 / xStep) * xStep;
-    const yStart = Math.ceil(viewY0 / yStep) * yStep;
-    ctx.font = "11px ui-monospace, monospace";
-    ctx.lineWidth = 1;
-    for (let x = xStart; x <= viewX1 + xStep * 0.01; x += xStep) {
-      const px = left + ((x - viewX0) / (viewX1 - viewX0)) * plotW;
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
-      ctx.beginPath();
-      ctx.moveTo(px, top);
-      ctx.lineTo(px, top + plotH);
-      ctx.stroke();
-      ctx.fillStyle = "#71717a";
-      ctx.textAlign = "center";
-      ctx.fillText(tickLabel(x), px, height - 14);
-    }
-    for (let y = yStart; y <= viewY1 + yStep * 0.01; y += yStep) {
-      const py = top + plotH - ((y - viewY0) / (viewY1 - viewY0)) * plotH;
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
-      ctx.beginPath();
-      ctx.moveTo(left, py);
-      ctx.lineTo(left + plotW, py);
-      ctx.stroke();
-      ctx.fillStyle = "#71717a";
-      ctx.textAlign = "right";
-      ctx.fillText(tickLabel(y), left - 6, py + 4);
-    }
-    if (xLabel) {
-      ctx.fillStyle = "#a1a1aa";
-      ctx.textAlign = "right";
-      ctx.fillText(xLabel, width - 8, height - 2);
-    }
-    if (yLabel) {
-      ctx.fillStyle = "#a1a1aa";
+      let viewX0 = xMin ?? points[0]?.x ?? 0;
+      let viewX1 = xMax ?? points[points.length - 1]?.x ?? 1;
+      let viewY0 = yMin ?? Infinity;
+      let viewY1 = yMax ?? -Infinity;
+      if (yMin === undefined || yMax === undefined) {
+        for (const point of points) {
+          viewY0 = Math.min(viewY0, point.y);
+          viewY1 = Math.max(viewY1, point.y);
+        }
+      }
+      if (!Number.isFinite(viewY0) || !Number.isFinite(viewY1)) {
+        viewY0 = -1;
+        viewY1 = 1;
+      }
+      if (viewX1 - viewX0 < 1e-12) {
+        viewX0 -= 1;
+        viewX1 += 1;
+      }
+      if (viewY1 - viewY0 < 1e-12) {
+        viewY0 -= 1;
+        viewY1 += 1;
+      }
+      const yPad = (viewY1 - viewY0) * 0.08;
+      if (yMin === undefined) viewY0 -= yPad;
+      if (yMax === undefined) viewY1 += yPad;
+
+      const xScale = axisScale(viewX0, viewX1);
+      const yScale = axisScale(viewY0, viewY1);
+      const xTicks = ticks(viewX0, viewX1, xScale.div);
+      const yTicks = ticks(viewY0, viewY1, yScale.div);
+      ctx.font = "13px ui-monospace, SFMono-Regular, monospace";
+      let left = 52;
+      for (const value of yTicks.values) {
+        left = Math.max(left, ctx.measureText(tickText(value, yTicks.step)).width + 16);
+      }
+      const top = 28;
+      const right = 16;
+      const bottom = 28;
+      const plotW = cssW - left - right;
+      const plotH = cssH - top - bottom;
+      const xOf = (x: number) => left + ((x - viewX0) / (viewX1 - viewX0)) * plotW;
+      const yOf = (y: number) => top + plotH - ((y - viewY0) / (viewY1 - viewY0)) * plotH;
+
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      ctx.strokeRect(left, top, plotW, plotH);
+      ctx.fillStyle = "#e4e4e7";
       ctx.textAlign = "left";
-      ctx.fillText(yLabel, 8, 12);
-    }
+      ctx.textBaseline = "top";
+      const caption = [yLabel, yScale.note].filter(Boolean).join(" ");
+      if (caption) ctx.fillText(caption, left, 6);
 
-    if (points.length < 2) return;
-    const step = Math.max(1, Math.floor(points.length / 700));
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(left, top, plotW, plotH);
-    ctx.clip();
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.4;
-    let drawn = 0;
-    for (let i = 0; i < points.length; i += step) {
-      const px = left + ((points[i].x - viewX0) / (viewX1 - viewX0)) * plotW;
-      const py = top + plotH - ((points[i].y - viewY0) / (viewY1 - viewY0)) * plotH;
-      if (drawn === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-      drawn += 1;
-    }
-    const last = points[points.length - 1];
-    const lastX = left + ((last.x - viewX0) / (viewX1 - viewX0)) * plotW;
-    const lastY = top + plotH - ((last.y - viewY0) / (viewY1 - viewY0)) * plotH;
-    ctx.lineTo(lastX, lastY);
-    ctx.stroke();
-    ctx.restore();
+      ctx.textBaseline = "middle";
+      for (const value of yTicks.values) {
+        const py = yOf(value * yScale.div);
+        if (py < top + 8 || py > top + plotH - 8) continue;
+        ctx.strokeStyle = "rgba(255,255,255,0.08)";
+        ctx.beginPath();
+        ctx.moveTo(left, py);
+        ctx.lineTo(left + plotW, py);
+        ctx.stroke();
+        ctx.fillStyle = "#e4e4e7";
+        ctx.textAlign = "right";
+        ctx.fillText(tickText(value, yTicks.step), left - 8, py);
+      }
+
+      ctx.textBaseline = "top";
+      const xCaption = [xLabel, xScale.note].filter(Boolean).join(" ");
+      const xCaptionW = xCaption ? ctx.measureText(xCaption).width + 12 : 0;
+      let lastRight = -Infinity;
+      for (const value of xTicks.values) {
+        const px = xOf(value * xScale.div);
+        const label = tickText(value, xTicks.step);
+        const half = ctx.measureText(label).width / 2 + 6;
+        if (px - half < left || px + half > left + plotW - xCaptionW) continue;
+        if (px - half < lastRight) continue;
+        lastRight = px + half;
+        ctx.strokeStyle = "rgba(255,255,255,0.08)";
+        ctx.beginPath();
+        ctx.moveTo(px, top);
+        ctx.lineTo(px, top + plotH);
+        ctx.stroke();
+        ctx.fillStyle = "#e4e4e7";
+        ctx.textAlign = "center";
+        ctx.fillText(label, px, top + plotH + 6);
+      }
+      if (xCaption) {
+        ctx.fillStyle = "#e4e4e7";
+        ctx.textAlign = "right";
+        ctx.fillText(xCaption, left + plotW, top + plotH + 6);
+      }
+
+      if (points.length < 2) return;
+      const step = Math.max(1, Math.floor(points.length / 700));
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, top, plotW, plotH);
+      ctx.clip();
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.6;
+      let drawn = 0;
+      for (let i = 0; i < points.length; i += step) {
+        const px = xOf(points[i].x);
+        const py = yOf(points[i].y);
+        if (drawn === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+        drawn += 1;
+      }
+      ctx.lineTo(xOf(points[points.length - 1].x), yOf(points[points.length - 1].y));
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    draw();
+    const observer = new ResizeObserver(draw);
+    observer.observe(canvas);
+    return () => observer.disconnect();
   }, [values, xKey, color, xMin, xMax, yMin, yMax, xLabel, yLabel, xs]);
 
-  return <canvas ref={ref} width={960} height={260} className="h-64 w-full rounded-xl" />;
+  return <canvas ref={ref} className="h-64 w-full rounded-xl" />;
 }
