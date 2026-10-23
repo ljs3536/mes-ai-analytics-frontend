@@ -6,6 +6,19 @@ export async function loadSensors(machine: string) {
   return mes.sensors(machine);
 }
 
+export async function searchWaveforms(machine: string, channel: string, start: string, stop: string) {
+  return collector.waveforms(machine, channel, start, stop);
+}
+
+export async function loadWaveformAt(machine: string, channel: string, at: string) {
+  try {
+    return await collector.waveformAt(machine, channel, at);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
 export async function loadWaveform(machine: string, channel: string) {
   try {
     return await collector.waveform(machine, channel);
@@ -77,6 +90,18 @@ export async function deleteModel(id: number) {
 }
 
 // 고른 설비의 수집 데이터로 해당 모델 학습을 요청한다.
-export async function trainManagedModel(id: number, body: { machine: string; minutes: number }) {
+export async function trainManagedModel(id: number, body: { machine: string; minutes: number; datasetId?: number }) {
   return analytics.trainModel(id, body);
+}
+
+export async function loadDatasets() {
+  return analytics.datasets();
+}
+
+export async function saveDataset(body: { name: string; items: import("./api").DatasetItem[] }) {
+  return analytics.createDataset(body);
+}
+
+export async function removeDataset(id: number) {
+  return analytics.deleteDataset(id);
 }

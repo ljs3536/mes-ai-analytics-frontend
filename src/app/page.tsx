@@ -1,6 +1,6 @@
 "use client";
 
-// 파형 분석. 설비의 센서마다 시간 파형, 진폭 스펙트럼, Welch PSD를 보여 준다. 단위, 이동 RMS, FFT 윈도우, 축 고정을 고른다.
+// 실시간 파형. 설비의 센서마다 최신 블록의 시간 파형, 진폭 스펙트럼, Welch PSD를 보여 준다. 단위, 이동 RMS, FFT 윈도우, 축 고정을 고른다.
 
 import { useEffect, useMemo, useState } from "react";
 import { LineChart } from "@/components/LineChart";
@@ -223,7 +223,7 @@ export default function WaveformPage() {
     <>
       <header className="flex items-end justify-between border-b border-white/8 px-8 py-6">
         <div>
-          <h2 className="text-2xl font-semibold text-zinc-50">파형 분석</h2>
+          <h2 className="text-2xl font-semibold text-zinc-50">실시간 파형</h2>
           <p className="mt-1 text-sm text-zinc-400">
             받은 파형은 그대로 두고, 이 화면에서만 V와 g로 바꿔 봅니다.
           </p>

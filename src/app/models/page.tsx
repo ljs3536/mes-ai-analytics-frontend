@@ -1,10 +1,10 @@
 "use client";
 
-// 모델. 종류를 골라 여러 개를 만들고, 파라미터와 실시간 적용 여부를 저장한 뒤 학습한다.
+// 모델. 종류를 골라 여러 개를 만들고, 파라미터와 실시간 적용 여부를 저장한 뒤 최근 구간이나 파형 세트로 학습한다.
 
 import { useEffect, useState } from "react";
-import { createModel, deleteModel, loadModels, trainManagedModel, updateModel } from "@/lib/actions";
-import type { Live, ManagedModel, ModelCatalog } from "@/lib/api";
+import { createModel, deleteModel, loadDatasets, loadModels, trainManagedModel, updateModel } from "@/lib/actions";
+import type { Dataset, Live, ManagedModel, ModelCatalog } from "@/lib/api";
 
 const emptyParams = (catalog: ModelCatalog | null, kind: string) => {
   const spec = catalog?.kinds.find((item) => item.id === kind);
@@ -21,12 +21,15 @@ export default function ModelsPage() {
   const [selected, setSelected] = useState<ManagedModel | null>(null);
   const [machine, setMachine] = useState("MACHINE_A");
   const [minutes, setMinutes] = useState(10);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [datasetId, setDatasetId] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
 
   async function refresh() {
-    const data = await loadModels();
+    const [data, sets] = await Promise.all([loadModels(), loadDatasets()]);
     setCatalog(data.models);
     setLive(data.live.predictions);
+    setDatasets(sets.datasets);
     setDraftParams((prev) => (Object.keys(prev).length ? prev : emptyParams(data.models, kind)));
     setSelected((prev) => {
       if (!prev) return prev;
@@ -45,6 +48,7 @@ export default function ModelsPage() {
 
   const createSpec = catalog?.kinds.find((item) => item.id === kind);
   const editSpec = catalog?.kinds.find((item) => item.id === selected?.kind);
+  const activeSet = datasets.find((item) => item.id === datasetId);
 
   return (
     <>
@@ -196,6 +200,23 @@ export default function ModelsPage() {
                   </select>
                 </label>
                 <label className="block text-sm text-zinc-400">
+                  학습 데이터
+                  <select
+                    value={datasetId}
+                    onChange={(e) => setDatasetId(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-[#0c1117] px-3 py-2"
+                  >
+                    <option value={0}>최근 구간</option>
+                    {datasets.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {item.items.length}개
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {datasetId === 0 ? (
+                <label className="block text-sm text-zinc-400">
                   최근 분
                   <input
                     type="number"
@@ -204,7 +225,17 @@ export default function ModelsPage() {
                     className="mt-1 w-full rounded-lg border border-white/10 bg-[#0c1117] px-3 py-2 text-zinc-100"
                   />
                 </label>
-              </div>
+              ) : (
+                <div className="rounded-lg border border-white/8 px-3 py-2 text-xs text-zinc-400">
+                  {activeSet?.items.slice(0, 6).map((item) => (
+                    <p key={`${item.machine}-${item.channel}-${item.ts}`}>
+                      {item.machine} {item.channel} {new Date(item.ts).toLocaleString("ko-KR", { hour12: false })}{" "}
+                      {item.preset || ""}
+                    </p>
+                  ))}
+                  {(activeSet?.items.length ?? 0) > 6 ? <p>외 {(activeSet?.items.length ?? 0) - 6}개</p> : null}
+                </div>
+              )}
               {selected.message ? <p className="text-sm text-zinc-400">{selected.message}</p> : null}
               {message ? <p className="text-sm text-amber-200">{message}</p> : null}
               <div className="flex gap-2">
@@ -226,7 +257,13 @@ export default function ModelsPage() {
                   className="rounded-lg bg-sky-400 px-3 py-2 text-sm font-medium text-zinc-950"
                   onClick={() =>
                     updateModel(selected)
-                      .then(() => trainManagedModel(selected.id, { machine, minutes }))
+                      .then(() =>
+                        trainManagedModel(selected.id, {
+                          machine,
+                          minutes,
+                          ...(datasetId ? { datasetId } : {}),
+                        }),
+                      )
                       .then((result) =>
                         setMessage(
                           result.status === "training"

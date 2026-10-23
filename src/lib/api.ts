@@ -116,11 +116,49 @@ export type MachineSensor = {
   enabled: boolean;
 };
 
+export type WaveformSummary = {
+  machine: string;
+  channel: string;
+  ts: string;
+  sampleRate: number;
+  n: number;
+  rpm: number;
+  unit: string;
+  preset: string;
+};
+
+export type DatasetItem = {
+  machine: string;
+  channel: string;
+  ts: string;
+  rpm: number | null;
+  n: number | null;
+  unit: string;
+  preset: string;
+};
+
+export type Dataset = {
+  id: number;
+  name: string;
+  createdAt: string;
+  items: DatasetItem[];
+};
+
 export const collector = {
   waveform: (machine: string, channel: string) =>
     call<Waveform>(
       COLLECTOR_URL,
       `/api/waveform?machine=${encodeURIComponent(machine)}&channel=${encodeURIComponent(channel)}`,
+    ),
+  waveforms: (machine: string, channel: string, start: string, stop: string) =>
+    call<WaveformSummary[]>(
+      COLLECTOR_URL,
+      `/api/waveforms?machine=${encodeURIComponent(machine)}&start=${encodeURIComponent(start)}&stop=${encodeURIComponent(stop)}${channel ? `&channel=${encodeURIComponent(channel)}` : ""}`,
+    ),
+  waveformAt: (machine: string, channel: string, at: string) =>
+    call<Waveform>(
+      COLLECTOR_URL,
+      `/api/waveform?machine=${encodeURIComponent(machine)}&channel=${encodeURIComponent(channel)}&at=${encodeURIComponent(at)}&with_fft=false`,
     ),
 };
 
@@ -185,9 +223,13 @@ export const analytics = {
       body: JSON.stringify({ name: model.name, params: model.params, realtime: model.realtime }),
     }),
   deleteModel: (id: number) => call<null>(ANALYTICS_URL, `/api/models/${id}`, { method: "DELETE" }),
-  trainModel: (id: number, body: { machine: string; minutes: number }) =>
+  trainModel: (id: number, body: { machine: string; minutes: number; datasetId?: number }) =>
     call<{ version: string; realtime: boolean; status?: string }>(ANALYTICS_URL, `/api/models/${id}/train`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  datasets: () => call<{ datasets: Dataset[] }>(ANALYTICS_URL, "/api/datasets"),
+  createDataset: (body: { name: string; items: DatasetItem[] }) =>
+    call<Dataset>(ANALYTICS_URL, "/api/datasets", { method: "POST", body: JSON.stringify(body) }),
+  deleteDataset: (id: number) => call<null>(ANALYTICS_URL, `/api/datasets/${id}`, { method: "DELETE" }),
 };

@@ -1,4 +1,4 @@
-// 센서 분석 화면. 센서 파형과 Welch PSD를 단위·윈도우·축 고정으로 보고, 센서 연결과 이상 탐지 모델을 다룬다. 관리자만 연다.
+// 센서 분석 화면. 실시간 파형과 파형 이력, Welch PSD, 학습 세트를 보고, 센서 연결과 이상 탐지 모델을 다룬다. 관리자만 연다.
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Sans_KR } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
